@@ -21,6 +21,15 @@ function conductor.load(filename)
 
 end
 
+function conductor.setPosition(seconds)
+    if audio ~= nil then
+        audio:seek(seconds, "seconds")
+        return true
+    else
+        return false
+    end
+end
+
 function conductor.play()
     if audio ~= nil then
         audio:play()
@@ -31,6 +40,15 @@ function conductor.play()
 end
 
 function conductor.pause()
+    if audio ~= nil then
+        audio:pause()
+        return true
+    else
+        return false
+    end
+end
+
+function conductor.stop()
     if audio ~= nil then
         audio:stop()
         return true

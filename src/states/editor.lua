@@ -1,5 +1,4 @@
 editor = {}
-
 function editor:init()
     love.filesystem.createDirectory("charts")
 
@@ -13,23 +12,22 @@ function editor:init()
     showGrid = true
     bgSectionOffset = 0
     isPlaying = false
-    glowSetup = {sizeY = 0, alpha = 1}
     Song = {
         name = "dubnix",
         bpm = 85,
-        noteSpeed = 1.1,
+        noteSpeed = 1.3,
         notes = {}
     }
 
-    NoteSrc = paths.getImage("block")
+    NoteSrc = paths.getImage("note")
+    wrongNoteSrc = paths.getImage("wrongNote")
     bg = paths.getImage("bgs/game_bg4")
-    hitblock = paths.getImage("block_accept")
-    glow = paths.getImage("glow")
+    hitblock = paths.getImage("note_accept")
 
     noteGroup = gui:collapsegroup('Notes', {0, 90, 128, gui.style.unit})
     noteGroup.drag = false
-    for i = 1, 4 do
-		option = gui:option('note '.. i, {0, gui.style.unit * i, 128, gui.style.unit}, noteGroup, i)
+    for i = 1, 5 do
+		option = gui:option('Note '.. i, {0, gui.style.unit * i, 128, gui.style.unit}, noteGroup, i)
 		function option.click(this)
             curNote = i
         end
@@ -130,12 +128,6 @@ function editor:draw()
         love.graphics.draw(hitblock, 0, love.graphics.getHeight() / 2)
     love.graphics.pop()
 
-    love.graphics.push()
-        love.graphics.setColor(1, 1, 1, glowSetup.alpha)
-        love.graphics.scale(1, glowSetup.sizeY)
-        love.graphics.draw(glow, 0, love.graphics.getHeight() / 2)
-    love.graphics.pop()
-
     if love.mouse.getY() > 360 and love.mouse.getY() < 424 then
         love.graphics.push()
             love.graphics.setColor(1, 0, 0, 1)
@@ -150,7 +142,7 @@ function editor:draw()
     if showGrid then
         for s = 1, 1280, (2 ^ gridZoom) do
             love.graphics.push()
-                love.graphics.setColor(0, 0, 0, 0.5)
+                love.graphics.setColor(1, 1, 1, 0.8)
                 love.graphics.setLineWidth(1)
                 love.graphics.rectangle("line", s, love.graphics.getHeight() / 2, (2 ^ gridZoom), 64)
             love.graphics.pop()
@@ -171,15 +163,20 @@ function editor:update(elapsed)
     marker = math.floor(love.mouse.getX() / 2 ^ gridZoom) * 2 ^ gridZoom
 
     conductor.update()
+    
 
     if isPlaying then
         sectionOffset = (Song.noteSpeed * 0.1) + (sectionOffset + (conductor.dspSongTime * 1000) * 0.5)
         bgSectionOffset = -sectionOffset
     end
 
-    if isHover(0, love.graphics.getHeight() / 2) then
-        setInvisible(0, love.graphics.getHeight() / 2)
-        tween.new(0.1, glowSetup, {sizeY = 2, alpha = 0})
+    if love.mouse.isDown(2) then
+        if love.mouse.getY() > 360 and love.mouse.getY() < 424 then
+            if isHover(marker + (sectionOffset * 64), love.graphics.getHeight() / 2) then
+                print("removed")
+                removeNote(marker + (sectionOffset * 64), love.graphics.getHeight() / 2)
+            end
+        end
     end
 
     gui:update(elapsed)
@@ -198,10 +195,6 @@ function editor:update(elapsed)
 
     if sectionOffset < 1 then
         sectionOffset = 1
-    end
-
-    if curNote > 4 then
-        curNote = 4
     end
 end
 
@@ -223,13 +216,16 @@ function editor:keypressed(k, code)
                 isPlaying = false
             end
         else
-            sectionOffset = 1
-            bgSectionOffset = 0
+            --sectionOffset = 1
+            --bgSectionOffset = 0
+            sectionOffset =  math.floor(sectionOffset)
+            bgSectionOffset =  math.floor(bgSectionOffset)
             conductor.pause()
         end
     end
 
     if k == "r" then
+        conductor.stop()
         sectionOffset = 1
         bgSectionOffset = 0
     end
@@ -351,6 +347,16 @@ function renderNote()
                     love.graphics.setColor(love.math.colorFromBytes(239, 17, 242, 0))
                 end
                 love.graphics.draw(NoteSrc, Note.x - (sectionOffset * 64), Note.y)
+            love.graphics.pop()            
+        end
+        if Note.type == 5 then
+            love.graphics.push()
+                if Note.visible then
+                    love.graphics.setColor(love.math.colorFromBytes(255, 255, 255, 255))
+                else
+                    love.graphics.setColor(love.math.colorFromBytes(255, 255, 255, 0))
+                end
+                love.graphics.draw(wrongNoteSrc, Note.x - (sectionOffset * 64), Note.y)
             love.graphics.pop()            
         end
     end
