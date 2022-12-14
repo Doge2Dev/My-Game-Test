@@ -2,10 +2,10 @@ function love.load()
     --=[ Modules ]=--
     gamestate = require 'libraries.gamestate'
     json = require 'libraries.json'
+    require "libraries.json-beautify"
     gui = require 'libraries.gspot'
     tween = require 'libraries.tween'
     paths = require 'src.paths'
-    require "libraries.json-beautify"
 
     --=[ states ]=--
     editor = require 'src.states.editor'

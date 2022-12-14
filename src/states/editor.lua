@@ -5,17 +5,15 @@ function editor:init()
 
     utils = require 'src.components.editor.utils'
     conductor = require 'src.components.conductor'
-    Camera = require 'libraries.camera'
-    camera = Camera(love.graphics.getWidth() / 2, love.graphics.getHeight() / 2)
-    --camera:zoom(0.6)
 
     marker = 0
     curNote = 1
     gridZoom = 6
     sectionOffset = 1
     showGrid = true
-    bgSectionOffset = love.graphics.getWidth()
+    bgSectionOffset = 0
     isPlaying = false
+    glowSetup = {sizeY = 0, alpha = 1}
     Song = {
         name = "dubnix",
         bpm = 85,
@@ -25,8 +23,10 @@ function editor:init()
 
     NoteSrc = paths.getImage("block")
     bg = paths.getImage("bgs/game_bg4")
+    hitblock = paths.getImage("block_accept")
+    glow = paths.getImage("glow")
 
-    noteGroup = gui:collapsegroup('Notes', {0, 70, 128, gui.style.unit})
+    noteGroup = gui:collapsegroup('Notes', {0, 90, 128, gui.style.unit})
     noteGroup.drag = false
     for i = 1, 4 do
 		option = gui:option('note '.. i, {0, gui.style.unit * i, 128, gui.style.unit}, noteGroup, i)
@@ -117,44 +117,54 @@ function editor:init()
 end
 
 function editor:draw()
-    camera:attach()
+    love.graphics.push()
+        love.graphics.setColor(1, 1, 1, 0.5)
+        love.graphics.scale(0.68, 0.68)
+        love.graphics.draw(bg, 0, 0)
+    love.graphics.pop()
+
+    renderChessGrid(bgSectionOffset)
+
+    love.graphics.push()
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(hitblock, 0, love.graphics.getHeight() / 2)
+    love.graphics.pop()
+
+    love.graphics.push()
+        love.graphics.setColor(1, 1, 1, glowSetup.alpha)
+        love.graphics.scale(1, glowSetup.sizeY)
+        love.graphics.draw(glow, 0, love.graphics.getHeight() / 2)
+    love.graphics.pop()
+
+    if love.mouse.getY() > 360 and love.mouse.getY() < 424 then
         love.graphics.push()
-            love.graphics.setColor(1, 1, 1, 0.5)
-            love.graphics.scale(0.68, 0.68)
-            love.graphics.draw(bg, 0, 0)
+            love.graphics.setColor(1, 0, 0, 1)
+            love.graphics.rectangle("line", marker, love.graphics.getHeight() / 2, 64, 64)
         love.graphics.pop()
+    end
 
-        utils.generateChartChess(bgSectionOffset)
+    renderNote()
 
-        if love.mouse.getY() > 360 and love.mouse.getY() < 424 then
+    gui:draw()
+
+    if showGrid then
+        for s = 1, 1280, (2 ^ gridZoom) do
             love.graphics.push()
-                love.graphics.setColor(1, 0, 0, 1)
-                love.graphics.rectangle("line", marker, love.graphics.getHeight() / 2, 64, 64)
+                love.graphics.setColor(0, 0, 0, 0.5)
+                love.graphics.setLineWidth(1)
+                love.graphics.rectangle("line", s, love.graphics.getHeight() / 2, (2 ^ gridZoom), 64)
             love.graphics.pop()
         end
+    end
 
-        renderNote()
-
-        gui:draw()
-
-        if showGrid then
-            for s = 1, 1280, (2 ^ gridZoom) do
-                love.graphics.push()
-                    love.graphics.setColor(0, 0, 0, 0.5)
-                    love.graphics.setLineWidth(1)
-                    love.graphics.rectangle("line", s, love.graphics.getHeight() / 2, (2 ^ gridZoom), 64)
-                love.graphics.pop()
-            end
-        end
-
-        love.graphics.push()
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print("Current note : " .. curNote, 0, 0)
-            love.graphics.print("Current offset : " .. sectionOffset, 0, 10)
-            love.graphics.print("Note count : " .. #Song.notes, 0, 20)
-            love.graphics.print("Grid zoom : " .. gridZoom, 0, 30)
-        love.graphics.pop()
-    camera:detach()
+    love.graphics.push()
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.print("Current note : " .. curNote, 0, 0)
+        love.graphics.print("Current offset : " .. sectionOffset, 0, 10)
+        love.graphics.print("Note count : " .. #Song.notes, 0, 20)
+        love.graphics.print("Grid zoom : " .. gridZoom, 0, 30)
+        love.graphics.print(bgSectionOffset, 0, 40)
+    love.graphics.pop()
 end
 
 function editor:update(elapsed)
@@ -164,11 +174,12 @@ function editor:update(elapsed)
 
     if isPlaying then
         sectionOffset = (Song.noteSpeed * 0.1) + (sectionOffset + (conductor.dspSongTime * 1000) * 0.5)
-        bgSectionOffset = sectionOffset
+        bgSectionOffset = -sectionOffset
+    end
 
-        if bgSectionOffset < -128 then
-            bgSectionOffset = 0
-        end
+    if isHover(0, love.graphics.getHeight() / 2) then
+        setInvisible(0, love.graphics.getHeight() / 2)
+        tween.new(0.1, glowSetup, {sizeY = 2, alpha = 0})
     end
 
     gui:update(elapsed)
@@ -220,6 +231,7 @@ function editor:keypressed(k, code)
 
     if k == "r" then
         sectionOffset = 1
+        bgSectionOffset = 0
     end
 end
 
@@ -279,29 +291,65 @@ function isHover(x, y)
     end
 end
 
+function renderChessGrid(offset)
+    x = offset * 64
+    currentPatternID = 1
+    chessPattern = {
+        {0.6, 0.6, 0.6, 1},
+        {0.3, 0.3, 0.3, 1}
+    }
+    for p = 1, sectionOffset + 24, 1 do
+        love.graphics.push()
+            love.graphics.setColor(chessPattern[currentPatternID])
+            love.graphics.rectangle("fill", x, love.graphics.getHeight() / 2, 64, 64)
+            currentPatternID = currentPatternID + 1
+            if currentPatternID > 2 then
+                currentPatternID = 1
+            end
+            x = x + 64
+        love.graphics.pop()
+    end
+end
+
 function renderNote()
     for k, Note in pairs(Song.notes) do
         if Note.type == 1 then
             love.graphics.push()
-                love.graphics.setColor(love.math.colorFromBytes(242, 187, 17, 255))
+                if Note.visible then
+                    love.graphics.setColor(love.math.colorFromBytes(242, 187, 17, 255))
+                else
+                    love.graphics.setColor(love.math.colorFromBytes(242, 187, 17, 0))
+                end
                 love.graphics.draw(NoteSrc, Note.x - (sectionOffset * 64), Note.y)
             love.graphics.pop()
         end
         if Note.type == 2 then
             love.graphics.push()
-                love.graphics.setColor(love.math.colorFromBytes(17, 174, 242, 255))
+                if Note.visible then
+                    love.graphics.setColor(love.math.colorFromBytes(17, 174, 242, 255))
+                else
+                    love.graphics.setColor(love.math.colorFromBytes(17, 174, 242, 0))
+                end
                 love.graphics.draw(NoteSrc, Note.x - (sectionOffset * 64), Note.y)
             love.graphics.pop()            
         end
         if Note.type == 3 then
             love.graphics.push()
-                love.graphics.setColor(love.math.colorFromBytes(242, 17, 17, 255))
+                if Note.visible then
+                    love.graphics.setColor(love.math.colorFromBytes(242, 17, 17, 255))
+                else
+                    love.graphics.setColor(love.math.colorFromBytes(242, 17, 17, 0))
+                end
                 love.graphics.draw(NoteSrc, Note.x - (sectionOffset * 64), Note.y)
             love.graphics.pop()            
         end
         if Note.type == 4 then
             love.graphics.push()
-                love.graphics.setColor(love.math.colorFromBytes(239, 17, 242, 255))
+                if Note.visible then
+                    love.graphics.setColor(love.math.colorFromBytes(239, 17, 242, 255))
+                else
+                    love.graphics.setColor(love.math.colorFromBytes(239, 17, 242, 0))
+                end
                 love.graphics.draw(NoteSrc, Note.x - (sectionOffset * 64), Note.y)
             love.graphics.pop()            
         end
@@ -312,7 +360,8 @@ function addNote(type, x, y)
     Note = {
         type = type,
         x = x,
-        y = y
+        y = y,
+        visible = true
     } 
 
     table.insert(Song.notes, Note)
@@ -323,6 +372,16 @@ function removeNote(x, y)
         if Note.x == x then
             if Note.y == y then
                 table.remove(Song.notes, k)
+            end
+        end
+    end
+end
+
+function setInvisible(x, y)
+    for k, Note in pairs(Song.notes) do
+        if Note.x == x then
+            if Note.y == y then
+                Note.visible = false
             end
         end
     end
